@@ -260,15 +260,21 @@ export default function CronPage() {
                           />
                         </TableCell>
 
-                        {/* Name + payload preview */}
+                        {/* Name + model */}
                         <TableCell>
                           <div className="space-y-0.5">
                             <div className="font-medium">{job.name || job.id}</div>
-                            <div className="text-xs text-muted-foreground truncate max-w-[250px]">
-                              <Badge variant="outline" className="text-[10px] px-1 py-0 mr-1.5 font-normal">
+                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">
                                 {job.payload?.kind === "agentTurn" ? "agent" : "system"}
                               </Badge>
-                              {getPayloadPreview(job.payload)}
+                              {job.payload?.kind === "agentTurn" && (job.payload as { model?: string }).model ? (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono font-normal">
+                                  {(job.payload as { model?: string }).model}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground/60">default model</span>
+                              )}
                             </div>
                           </div>
                         </TableCell>
