@@ -1,0 +1,126 @@
+/* Retrowave — Neon-soaked synthwave nightdrive */
+
+/* ── Scanline overlay ───────────────────────────────────── */
+[data-theme="retrowave"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  mix-blend-mode: multiply;
+}
+
+/* ── Neon glow on cards ─────────────────────────────────── */
+[data-theme="retrowave"] [data-slot="card"],
+[data-theme="retrowave"] .bg-card {
+  box-shadow:
+    0 0 15px rgba(255, 46, 151, 0.06),
+    0 0 30px rgba(176, 38, 255, 0.03),
+    inset 0 1px 0 rgba(255, 46, 151, 0.08);
+  border: 1px solid rgba(255, 46, 151, 0.1);
+}
+
+/* ── Neon text glow on primary elements ─────────────────── */
+[data-theme="retrowave"] [data-slot="sidebar-menu-button"].bg-sidebar-accent {
+  text-shadow: 0 0 8px rgba(255, 46, 151, 0.5);
+}
+
+/* ── Horizon sun gradient at bottom ─────────────────────── */
+[data-theme="retrowave"] .theme-ambient-layer::before {
+  content: "";
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: linear-gradient(
+    0deg,
+    rgba(255, 46, 151, 0.08) 0%,
+    rgba(176, 38, 255, 0.04) 40%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Grid floor perspective ─────────────────────────────── */
+[data-theme="retrowave"] .theme-ambient-layer::after {
+  content: "";
+  position: fixed;
+  bottom: 0;
+  left: -20%;
+  right: -20%;
+  height: 180px;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(0, 240, 255, 0.06) 49.5%,
+      rgba(0, 240, 255, 0.12) 50%,
+      rgba(0, 240, 255, 0.06) 50.5%,
+      transparent 100%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 58px,
+      rgba(0, 240, 255, 0.05) 58px,
+      rgba(0, 240, 255, 0.05) 60px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 38px,
+      rgba(0, 240, 255, 0.04) 38px,
+      rgba(0, 240, 255, 0.04) 40px
+    );
+  transform: perspective(400px) rotateX(55deg);
+  transform-origin: bottom center;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(0deg, white 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(0deg, white 0%, transparent 100%);
+}
+
+/* ── Neon pulse on active buttons ───────────────────────── */
+[data-theme="retrowave"] button[data-active="true"],
+[data-theme="retrowave"] .bg-primary {
+  animation: neon-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes neon-pulse {
+  0% {
+    box-shadow: 0 0 5px rgba(255, 46, 151, 0.4), 0 0 10px rgba(255, 46, 151, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(255, 46, 151, 0.6), 0 0 25px rgba(255, 46, 151, 0.3), 0 0 40px rgba(255, 46, 151, 0.1);
+  }
+}
+
+/* ── Chromatic sidebar divider ──────────────────────────── */
+[data-theme="retrowave"] [data-slot="sidebar"] {
+  border-right: 1px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+
+[data-theme="retrowave"] [data-slot="sidebar"]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 240, 255, 0.3) 0%,
+    rgba(255, 46, 151, 0.5) 50%,
+    rgba(176, 38, 255, 0.3) 100%
+  );
+}
