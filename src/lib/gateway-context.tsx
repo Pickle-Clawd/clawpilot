@@ -281,7 +281,7 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
   );
 
   const refreshCronJobs = useCallback(() => {
-    send("cron.list")
+    send("cron.list", { includeDisabled: true })
       .then((result) => {
         if (Array.isArray(result)) setCronJobs(result);
         else if (result && typeof result === "object" && "jobs" in (result as Record<string, unknown>)) {
