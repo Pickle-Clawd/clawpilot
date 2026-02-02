@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClawPilot — OpenClaw Dashboard",
+  title: "The Helm — OpenClaw Dashboard",
   description: "A modern dashboard for controlling your OpenClaw AI agent gateway",
 };
 

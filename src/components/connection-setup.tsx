@@ -38,7 +38,7 @@ export function ConnectionSetup() {
             <Zap className="w-8 h-8 text-white" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">ClawPilot</CardTitle>
+            <CardTitle className="text-2xl font-bold">The Helm</CardTitle>
             <CardDescription className="mt-2">
               Connect to your OpenClaw gateway to get started
             </CardDescription>

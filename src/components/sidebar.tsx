@@ -43,7 +43,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <span className="text-2xl shrink-0">🦞</span>
           {!collapsed && (
             <span className="font-bold text-lg text-white">
-              ClawPilot
+              The Helm
             </span>
           )}
         </div>

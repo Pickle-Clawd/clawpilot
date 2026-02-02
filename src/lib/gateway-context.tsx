@@ -28,7 +28,7 @@ interface GatewayContextType {
 
 const GatewayContext = createContext<GatewayContextType | null>(null);
 
-const STORAGE_KEY = "clawpilot-gateway-config";
+const STORAGE_KEY = "the-helm-gateway-config";
 
 function loadConfig(): GatewayConfig | null {
   if (typeof window === "undefined") return null;
@@ -116,7 +116,7 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
       auth: {
         token: cfg.token,
       },
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "ClawPilot/1.0",
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "TheHelm/1.0",
       locale: typeof navigator !== "undefined" ? navigator.language : "en",
     };
 
