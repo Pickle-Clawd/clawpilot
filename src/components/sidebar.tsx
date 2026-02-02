@@ -10,7 +10,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -41,11 +40,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       >
         {/* Logo */}
         <div className="h-14 flex items-center px-4 gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gradient-orange to-gradient-pink flex items-center justify-center shrink-0">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
+          <span className="text-2xl shrink-0">🦞</span>
           {!collapsed && (
-            <span className="font-bold text-lg bg-gradient-to-r from-gradient-orange to-gradient-pink bg-clip-text text-transparent">
+            <span className="font-bold text-lg text-white">
               ClawPilot
             </span>
           )}
