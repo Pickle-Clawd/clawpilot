@@ -19,12 +19,12 @@ import {
   type WidgetLayoutItem,
 } from "@/lib/widget-registry";
 import { useGateway } from "@/lib/gateway-context";
-import { debouncedPush, isSyncEnabled, pullLayout as pullRemoteLayout } from "@/lib/layout-sync";
+import { saveLocalLayout, loadLocalLayout, loadFromGateway } from "@/lib/layout-sync";
 import { WidgetWrapper } from "./widget-wrapper";
 import { WidgetCatalog } from "./widget-catalog";
 import { SyncSettings } from "./sync-settings";
 import { Button } from "@/components/ui/button";
-import { Lock, Unlock, Plus, RotateCcw, Cloud, CloudOff } from "lucide-react";
+import { Lock, Unlock, Plus, RotateCcw, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Import react-grid-layout styles
@@ -41,35 +41,54 @@ export function WidgetGrid() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { width, containerRef } = useContainerWidth();
-  const { config } = useGateway();
+  const { config, send } = useGateway();
 
   const gatewayUrl = config?.url ?? null;
 
-  // Load saved layout on mount — try localStorage first, fall back to cloud
+  // Load saved layout on mount — try localStorage (keyed by gateway), fall back to gateway config
   useEffect(() => {
+    // Try local storage first (keyed by gateway URL for multi-gateway support)
+    if (gatewayUrl) {
+      const localSaved = loadLocalLayout(gatewayUrl);
+      if (localSaved && localSaved.length > 0) {
+        setItems(localSaved as WidgetLayoutItem[]);
+        setMounted(true);
+        setEditMode(loadEditMode());
+        return;
+      }
+    }
+
+    // Fall back to generic localStorage (legacy)
     const saved = loadLayout();
     if (saved && saved.length > 0) {
       setItems(saved);
-    } else if (isSyncEnabled()) {
-      // No local layout — try pulling from cloud
-      pullRemoteLayout().then((remote) => {
+      setMounted(true);
+      setEditMode(loadEditMode());
+      return;
+    }
+
+    // No local layout — try loading from gateway config
+    if (gatewayUrl) {
+      loadFromGateway(send).then((remote) => {
         if (remote && Array.isArray(remote) && remote.length > 0) {
           const restored = remote as WidgetLayoutItem[];
           setItems(restored);
           saveLayout(restored);
+          saveLocalLayout(gatewayUrl, restored);
         }
       });
     }
+
     setEditMode(loadEditMode());
     setMounted(true);
-  }, []);
+  }, [gatewayUrl, send]);
 
-  // Persist layout changes (localStorage + cloud sync)
+  // Persist layout changes (localStorage, keyed by gateway URL)
   const persistItems = useCallback((newItems: WidgetLayoutItem[]) => {
     setItems(newItems);
     saveLayout(newItems);
-    debouncedPush(newItems);
-  }, []);
+    if (gatewayUrl) saveLocalLayout(gatewayUrl, newItems);
+  }, [gatewayUrl]);
 
   // Convert our items to react-grid-layout format
   const layouts = useMemo((): ResponsiveLayouts => {
@@ -195,13 +214,9 @@ export function WidgetGrid() {
             size="icon"
             className="w-8 h-8"
             onClick={() => setSyncOpen(true)}
-            title="Layout Sync"
+            title="Layout Settings"
           >
-            {isSyncEnabled() ? (
-              <Cloud className="w-4 h-4 text-success" />
-            ) : (
-              <CloudOff className="w-4 h-4 text-muted-foreground" />
-            )}
+            <Settings2 className="w-4 h-4 text-muted-foreground" />
           </Button>
           <Button
             variant={editMode ? "default" : "outline"}
@@ -316,11 +331,12 @@ export function WidgetGrid() {
         onAdd={addWidget}
       />
 
-      {/* Sync Settings Dialog */}
+      {/* Layout Settings Dialog */}
       <SyncSettings
         open={syncOpen}
         onOpenChange={setSyncOpen}
-        gatewayUrl={gatewayUrl}
+        items={items}
+        send={send}
         onLayoutRestored={persistItems}
       />
     </div>

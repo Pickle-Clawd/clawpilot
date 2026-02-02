@@ -1,106 +1,116 @@
 /**
- * Layout sync — persists widget layouts to helm-sync service
- * for cross-browser/cross-device access.
+ * Layout persistence — tied to gateway identity.
  *
- * Flow:
- *   1. localStorage is the primary fast cache (always read/written)
- *   2. On layout change (debounced), push to helm-sync service
- *   3. On first load with empty localStorage, pull from helm-sync
+ * Storage layers:
+ *   1. localStorage (keyed by gateway URL hash) — fast primary cache
+ *   2. Gateway config (helm.layout key) — cross-browser persistence
+ *   3. Export/Import JSON — manual fallback
+ *
+ * The gateway config write triggers a restart, so it's only done
+ * on explicit "Save to Gateway" action, not on every drag.
  */
 
-const SYNC_URL_KEY = "the-helm-sync-url";
-const SYNC_KEY_KEY = "the-helm-sync-key";
-const DEFAULT_SYNC_URL = "https://helm-sync.thepickle.dev";
+import { createHash } from "./hash";
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const LAYOUT_PREFIX = "the-helm-layout-";
 
 /* ------------------------------------------------------------------ */
-/*  Config                                                             */
+/*  Local storage (keyed by gateway URL)                               */
 /* ------------------------------------------------------------------ */
 
-export function getSyncConfig(): { url: string; key: string | null } {
-  if (typeof window === "undefined") return { url: DEFAULT_SYNC_URL, key: null };
-  return {
-    url: localStorage.getItem(SYNC_URL_KEY) || DEFAULT_SYNC_URL,
-    key: localStorage.getItem(SYNC_KEY_KEY),
-  };
+function storageKey(gatewayUrl: string): string {
+  return LAYOUT_PREFIX + createHash(gatewayUrl);
 }
 
-export function setSyncKey(key: string) {
-  localStorage.setItem(SYNC_KEY_KEY, key);
+export function saveLocalLayout(gatewayUrl: string, layout: unknown[]) {
+  localStorage.setItem(storageKey(gatewayUrl), JSON.stringify(layout));
 }
 
-export function setSyncUrl(url: string) {
-  localStorage.setItem(SYNC_URL_KEY, url);
-}
-
-export function clearSyncConfig() {
-  localStorage.removeItem(SYNC_KEY_KEY);
-  localStorage.removeItem(SYNC_URL_KEY);
-}
-
-export function isSyncEnabled(): boolean {
-  return !!getSyncConfig().key;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Key generation                                                     */
-/* ------------------------------------------------------------------ */
-
-export async function generateSyncKey(gatewayUrl: string): Promise<string> {
-  const { url } = getSyncConfig();
-  const res = await fetch(`${url}/api/key`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ gatewayUrl }),
-  });
-  if (!res.ok) throw new Error("Failed to generate sync key");
-  const data = await res.json();
-  return data.key;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Push / Pull                                                        */
-/* ------------------------------------------------------------------ */
-
-export async function pushLayout(layout: unknown[]): Promise<boolean> {
-  const { url, key } = getSyncConfig();
-  if (!key) return false;
-
+export function loadLocalLayout(gatewayUrl: string): unknown[] | null {
   try {
-    const res = await fetch(`${url}/api/layout/${key}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layout }),
-    });
-    return res.ok;
+    const raw = localStorage.getItem(storageKey(gatewayUrl));
+    if (!raw) return null;
+    return JSON.parse(raw);
   } catch {
-    console.warn("[helm-sync] push failed silently");
+    return null;
+  }
+}
+
+export function clearLocalLayout(gatewayUrl: string) {
+  localStorage.removeItem(storageKey(gatewayUrl));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Gateway config storage                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Save layout to the gateway config under `helm.layout`.
+ * This triggers a gateway restart! Only call on explicit user action.
+ */
+export async function saveToGateway(
+  send: (method: string, params?: Record<string, unknown>) => Promise<unknown>,
+  layout: unknown[]
+): Promise<boolean> {
+  try {
+    await send("config.patch", {
+      patch: { helm: { layout } },
+    });
+    return true;
+  } catch (err) {
+    console.warn("[layout-sync] Failed to save to gateway:", err);
     return false;
   }
 }
 
-export async function pullLayout(): Promise<unknown[] | null> {
-  const { url, key } = getSyncConfig();
-  if (!key) return null;
-
+/**
+ * Load layout from the gateway config.
+ * Returns the layout array or null if not found.
+ */
+export async function loadFromGateway(
+  send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
+): Promise<unknown[] | null> {
   try {
-    const res = await fetch(`${url}/api/layout/${key}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.layout ?? null;
+    const config = (await send("config.get", {})) as Record<string, unknown>;
+    const helm = config?.helm as Record<string, unknown> | undefined;
+    if (helm?.layout && Array.isArray(helm.layout)) {
+      return helm.layout;
+    }
+    return null;
   } catch {
-    console.warn("[helm-sync] pull failed silently");
     return null;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Debounced push (call on every layout change)                       */
+/*  Export / Import                                                     */
 /* ------------------------------------------------------------------ */
 
-export function debouncedPush(layout: unknown[], delayMs = 3000) {
-  if (!isSyncEnabled()) return;
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => pushLayout(layout), delayMs);
+export function exportLayout(layout: unknown[]): string {
+  return JSON.stringify({ version: 1, layout }, null, 2);
+}
+
+export function importLayout(json: string): unknown[] | null {
+  try {
+    const data = JSON.parse(json);
+    if (data.version === 1 && Array.isArray(data.layout)) {
+      return data.layout;
+    }
+    // Also accept raw arrays
+    if (Array.isArray(data)) return data;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function downloadLayout(layout: unknown[]) {
+  const json = exportLayout(layout);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "helm-layout.json";
+  a.click();
+  URL.revokeObjectURL(url);
 }

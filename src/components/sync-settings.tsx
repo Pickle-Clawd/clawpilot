@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,207 +9,196 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  getSyncConfig,
-  setSyncKey,
-  generateSyncKey,
-  clearSyncConfig,
-  isSyncEnabled,
-  pushLayout,
-  pullLayout,
+  saveToGateway,
+  loadFromGateway,
+  downloadLayout,
+  importLayout,
 } from "@/lib/layout-sync";
-import { loadLayout, saveLayout, type WidgetLayoutItem } from "@/lib/widget-registry";
-import { Cloud, CloudOff, RefreshCw, Trash2, Upload, Download } from "lucide-react";
+import { saveLayout, type WidgetLayoutItem } from "@/lib/widget-registry";
+import {
+  Download,
+  Upload,
+  Save,
+  FolderDown,
+  AlertTriangle,
+} from "lucide-react";
 
 interface SyncSettingsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  gatewayUrl: string | null;
+  items: WidgetLayoutItem[];
+  send: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
   onLayoutRestored: (items: WidgetLayoutItem[]) => void;
 }
 
 export function SyncSettings({
   open,
   onOpenChange,
-  gatewayUrl,
+  items,
+  send,
   onLayoutRestored,
 }: SyncSettingsProps) {
-  const [synced, setSynced] = useState(false);
-  const [syncKey, setSyncKeyState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const { key } = getSyncConfig();
-    setSyncKeyState(key);
-    setSynced(!!key);
-  }, [open]);
-
-  const handleEnable = useCallback(async () => {
-    if (!gatewayUrl) return;
+  const handleSaveToGateway = useCallback(async () => {
+    if (items.length === 0) {
+      setStatus("No layout to save");
+      return;
+    }
     setLoading(true);
     setStatus(null);
-    try {
-      const key = await generateSyncKey(gatewayUrl);
-      setSyncKey(key);
-      setSyncKeyState(key);
-      setSynced(true);
+    const ok = await saveToGateway(send, items);
+    setStatus(
+      ok
+        ? "Layout saved to gateway! (Gateway will restart briefly)"
+        : "Failed to save — your gateway may not support this yet"
+    );
+    setLoading(false);
+  }, [items, send]);
 
-      // Push current layout immediately
-      const layout = loadLayout();
-      if (layout && layout.length > 0) {
-        await pushLayout(layout);
-        setStatus("Sync enabled & layout uploaded!");
-      } else {
-        setStatus("Sync enabled!");
-      }
-    } catch {
-      setStatus("Failed to enable sync");
-    } finally {
-      setLoading(false);
+  const handleLoadFromGateway = useCallback(async () => {
+    setLoading(true);
+    setStatus(null);
+    const remote = await loadFromGateway(send);
+    if (remote && Array.isArray(remote) && remote.length > 0) {
+      const restored = remote as WidgetLayoutItem[];
+      saveLayout(restored);
+      onLayoutRestored(restored);
+      setStatus(`Restored ${restored.length} widgets from gateway!`);
+    } else {
+      setStatus("No saved layout found on gateway");
     }
-  }, [gatewayUrl]);
+    setLoading(false);
+  }, [send, onLayoutRestored]);
 
-  const handleDisable = useCallback(() => {
-    clearSyncConfig();
-    setSyncKeyState(null);
-    setSynced(false);
-    setStatus("Sync disabled");
+  const handleExport = useCallback(() => {
+    if (items.length === 0) {
+      setStatus("No layout to export");
+      return;
+    }
+    downloadLayout(items);
+    setStatus("Layout downloaded!");
+  }, [items]);
+
+  const handleImport = useCallback(() => {
+    fileRef.current?.click();
   }, []);
 
-  const handlePush = useCallback(async () => {
-    setLoading(true);
-    setStatus(null);
-    try {
-      const layout = loadLayout();
-      if (!layout || layout.length === 0) {
-        setStatus("No layout to push");
-        return;
-      }
-      const ok = await pushLayout(layout);
-      setStatus(ok ? "Layout pushed to cloud!" : "Push failed");
-    } catch {
-      setStatus("Push failed");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handlePull = useCallback(async () => {
-    setLoading(true);
-    setStatus(null);
-    try {
-      const remote = await pullLayout();
-      if (!remote || !Array.isArray(remote) || remote.length === 0) {
-        setStatus("No remote layout found");
-        return;
-      }
-      const items = remote as WidgetLayoutItem[];
-      saveLayout(items);
-      onLayoutRestored(items);
-      setStatus(`Restored ${items.length} widgets from cloud!`);
-    } catch {
-      setStatus("Pull failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [onLayoutRestored]);
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        const layout = importLayout(text);
+        if (layout) {
+          const restored = layout as WidgetLayoutItem[];
+          saveLayout(restored);
+          onLayoutRestored(restored);
+          setStatus(`Imported ${restored.length} widgets!`);
+        } else {
+          setStatus("Invalid layout file");
+        }
+      };
+      reader.readAsText(file);
+      // Reset input so same file can be imported again
+      e.target.value = "";
+    },
+    [onLayoutRestored]
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {synced ? (
-              <Cloud className="w-5 h-5 text-success" />
-            ) : (
-              <CloudOff className="w-5 h-5 text-muted-foreground" />
-            )}
-            Layout Sync
-          </DialogTitle>
+          <DialogTitle>Layout Settings</DialogTitle>
           <DialogDescription>
-            Sync your dashboard layout across browsers and devices
+            Save, restore, or transfer your dashboard layout
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          {/* Status */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Status</span>
-            <Badge variant={synced ? "default" : "secondary"}>
-              {synced ? "Enabled" : "Disabled"}
-            </Badge>
+          {/* Gateway sync */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Gateway Storage</h3>
+            <p className="text-xs text-muted-foreground">
+              Save your layout to the gateway so it persists across browsers.
+              This will briefly restart the gateway.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleSaveToGateway}
+                disabled={loading || items.length === 0}
+              >
+                <Save className="w-4 h-4" />
+                Save to Gateway
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleLoadFromGateway}
+                disabled={loading}
+              >
+                <FolderDown className="w-4 h-4" />
+                Load from Gateway
+              </Button>
+            </div>
           </div>
 
-          {syncKey && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Sync Key</span>
-              <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                {syncKey}
-              </code>
-            </div>
-          )}
+          {/* Divider */}
+          <div className="border-t border-border/50" />
 
-          {/* Actions */}
+          {/* Export / Import */}
           <div className="space-y-2">
-            {!synced ? (
+            <h3 className="text-sm font-medium">Export / Import</h3>
+            <p className="text-xs text-muted-foreground">
+              Download your layout as a JSON file, or import one.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
               <Button
-                className="w-full gap-2"
-                onClick={handleEnable}
-                disabled={loading || !gatewayUrl}
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleExport}
+                disabled={items.length === 0}
               >
-                <Cloud className="w-4 h-4" />
-                {loading ? "Enabling..." : "Enable Cloud Sync"}
+                <Download className="w-4 h-4" />
+                Export JSON
               </Button>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={handlePush}
-                    disabled={loading}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Push
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={handlePull}
-                    disabled={loading}
-                  >
-                    <Download className="w-4 h-4" />
-                    Pull
-                  </Button>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full gap-1.5 text-destructive hover:text-destructive"
-                  onClick={handleDisable}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Disable Sync
-                </Button>
-              </>
-            )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleImport}
+              >
+                <Upload className="w-4 h-4" />
+                Import JSON
+              </Button>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
 
           {/* Status message */}
           {status && (
-            <p className="text-xs text-center text-muted-foreground">{status}</p>
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              {status}
+            </div>
           )}
-
-          <p className="text-xs text-muted-foreground">
-            Layouts are synced to{" "}
-            <code className="text-xs">helm-sync.thepickle.dev</code>. Your
-            layout is keyed to your gateway URL so it follows you across
-            browsers.
-          </p>
         </div>
       </DialogContent>
     </Dialog>
