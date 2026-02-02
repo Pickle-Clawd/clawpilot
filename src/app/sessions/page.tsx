@@ -47,7 +47,7 @@ export default function SessionsPage() {
     e.stopPropagation();
     if (!confirm(`Kill session "${session.label || session.key}"?`)) return;
     try {
-      await send("sessions.delete", { sessionKey: session.key });
+      await send("sessions.delete", { key: session.key });
       toast.success(`Killed ${session.label || session.key}`);
       refreshSessions();
     } catch (err) {
