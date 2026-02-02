@@ -18,10 +18,13 @@ import {
   saveEditMode,
   type WidgetLayoutItem,
 } from "@/lib/widget-registry";
+import { useGateway } from "@/lib/gateway-context";
+import { debouncedPush, isSyncEnabled, pullLayout as pullRemoteLayout } from "@/lib/layout-sync";
 import { WidgetWrapper } from "./widget-wrapper";
 import { WidgetCatalog } from "./widget-catalog";
+import { SyncSettings } from "./sync-settings";
 import { Button } from "@/components/ui/button";
-import { Lock, Unlock, Plus, RotateCcw } from "lucide-react";
+import { Lock, Unlock, Plus, RotateCcw, Cloud, CloudOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Import react-grid-layout styles
@@ -35,23 +38,37 @@ export function WidgetGrid() {
   const [items, setItems] = useState<WidgetLayoutItem[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { width, containerRef } = useContainerWidth();
+  const { config } = useGateway();
 
-  // Load saved layout on mount
+  const gatewayUrl = config?.url ?? null;
+
+  // Load saved layout on mount — try localStorage first, fall back to cloud
   useEffect(() => {
     const saved = loadLayout();
     if (saved && saved.length > 0) {
       setItems(saved);
+    } else if (isSyncEnabled()) {
+      // No local layout — try pulling from cloud
+      pullRemoteLayout().then((remote) => {
+        if (remote && Array.isArray(remote) && remote.length > 0) {
+          const restored = remote as WidgetLayoutItem[];
+          setItems(restored);
+          saveLayout(restored);
+        }
+      });
     }
     setEditMode(loadEditMode());
     setMounted(true);
   }, []);
 
-  // Persist layout changes
+  // Persist layout changes (localStorage + cloud sync)
   const persistItems = useCallback((newItems: WidgetLayoutItem[]) => {
     setItems(newItems);
     saveLayout(newItems);
+    debouncedPush(newItems);
   }, []);
 
   // Convert our items to react-grid-layout format
@@ -174,6 +191,19 @@ export function WidgetGrid() {
             </>
           )}
           <Button
+            variant="ghost"
+            size="icon"
+            className="w-8 h-8"
+            onClick={() => setSyncOpen(true)}
+            title="Layout Sync"
+          >
+            {isSyncEnabled() ? (
+              <Cloud className="w-4 h-4 text-success" />
+            ) : (
+              <CloudOff className="w-4 h-4 text-muted-foreground" />
+            )}
+          </Button>
+          <Button
             variant={editMode ? "default" : "outline"}
             size="sm"
             onClick={toggleEditMode}
@@ -284,6 +314,14 @@ export function WidgetGrid() {
         open={catalogOpen}
         onOpenChange={setCatalogOpen}
         onAdd={addWidget}
+      />
+
+      {/* Sync Settings Dialog */}
+      <SyncSettings
+        open={syncOpen}
+        onOpenChange={setSyncOpen}
+        gatewayUrl={gatewayUrl}
+        onLayoutRestored={persistItems}
       />
     </div>
   );
