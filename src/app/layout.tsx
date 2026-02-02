@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { GatewayProvider } from "@/lib/gateway-context";
+import { ThemeProvider } from "@/lib/theme-context";
 import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -28,10 +29,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <GatewayProvider>
-          <AppShell>{children}</AppShell>
-          <Toaster />
-        </GatewayProvider>
+        <ThemeProvider>
+          <GatewayProvider>
+            <AppShell>{children}</AppShell>
+            <Toaster />
+          </GatewayProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { ThemePicker } from "@/components/theme-picker";
 
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -82,8 +83,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           })}
         </nav>
 
-        {/* Collapse toggle */}
-        <div className="p-2 shrink-0">
+        {/* Theme picker & collapse toggle */}
+        <div className="p-2 shrink-0 space-y-1">
+          <ThemePicker collapsed={collapsed} />
           <Button
             variant="ghost"
             size="sm"
