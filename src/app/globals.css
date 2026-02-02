@@ -214,21 +214,30 @@
   --sidebar-ring: #FF6B4A;
 }
 
-/* Particle float animation for ambient effects */
-@keyframes particle-float {
-  0%, 100% {
-    translate: 0 0;
-    opacity: 0.2;
+/* Bubble rise animation for ambient effects */
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--bubble-opacity, 0.25);
   }
   50% {
-    translate: 0 var(--y-offset, -30px);
-    opacity: 0.8;
+    transform: translateY(calc(var(--rise-distance, -100vh) * 0.5)) translateX(var(--wobble, 15px));
+  }
+  90% {
+    opacity: var(--bubble-opacity, 0.25);
+  }
+  100% {
+    transform: translateY(var(--rise-distance, -100vh)) translateX(0);
+    opacity: 0;
   }
 }
 
-.animate-particle-float {
-  animation: particle-float ease-in-out infinite;
-  will-change: translate, opacity;
+.animate-bubble-rise {
+  animation: bubble-rise linear infinite;
+  will-change: transform, opacity;
 }
 
 /* Scrollbar styling */
