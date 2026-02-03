@@ -5,9 +5,13 @@ import {
   Heart,
   LayoutGrid,
   MessageSquare,
+  Wifi,
 } from "lucide-react";
 
-import { StatsGridWidget } from "@/components/widgets/stats-grid";
+import { ActiveSessionsStatWidget } from "@/components/widgets/active-sessions-stat";
+import { CronJobsStatWidget } from "@/components/widgets/cron-jobs-stat";
+import { UptimeStatWidget } from "@/components/widgets/uptime-stat";
+import { ConnectionStatWidget } from "@/components/widgets/connection-stat";
 import { CronSummaryWidget } from "@/components/widgets/cron-summary";
 import { ActiveSessionsWidget } from "@/components/widgets/active-sessions";
 import { SystemHealthWidget } from "@/components/widgets/system-health";
@@ -18,14 +22,47 @@ import { WelcomeWidget } from "@/components/widgets/welcome";
 /* ------------------------------------------------------------------ */
 
 registerWidget({
-  id: "stats-grid",
-  name: "Stats Overview",
-  description: "Key metrics at a glance — sessions, cron, uptime, connection",
+  id: "active-sessions-stat",
+  name: "Active Sessions",
+  description: "Live count of active sessions",
+  icon: MessageSquare,
+  category: "monitoring",
+  defaultSize: { w: 6, h: 4 },
+  minSize: { w: 4, h: 3 },
+  component: ActiveSessionsStatWidget,
+});
+
+registerWidget({
+  id: "cron-jobs-stat",
+  name: "Cron Jobs Count",
+  description: "Total and enabled cron job count",
+  icon: Clock,
+  category: "monitoring",
+  defaultSize: { w: 6, h: 4 },
+  minSize: { w: 4, h: 3 },
+  component: CronJobsStatWidget,
+});
+
+registerWidget({
+  id: "uptime-stat",
+  name: "Uptime",
+  description: "Gateway uptime since last restart",
   icon: Activity,
   category: "monitoring",
-  defaultSize: { w: 12, h: 6 },
-  minSize: { w: 8, h: 5 },
-  component: StatsGridWidget,
+  defaultSize: { w: 6, h: 4 },
+  minSize: { w: 4, h: 3 },
+  component: UptimeStatWidget,
+});
+
+registerWidget({
+  id: "connection-stat",
+  name: "Connection",
+  description: "Gateway connection status indicator",
+  icon: Wifi,
+  category: "monitoring",
+  defaultSize: { w: 6, h: 4 },
+  minSize: { w: 4, h: 3 },
+  component: ConnectionStatWidget,
 });
 
 registerWidget({

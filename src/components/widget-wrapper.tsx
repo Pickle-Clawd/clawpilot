@@ -62,7 +62,7 @@ export function WidgetWrapper({
       </div>
 
       {/* Widget content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden" style={{ containerType: "inline-size" }}>
         <Component instanceId={instanceId} editMode={editMode} />
       </div>
     </div>

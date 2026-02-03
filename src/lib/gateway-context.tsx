@@ -28,27 +28,6 @@ interface GatewayContextType {
 
 const GatewayContext = createContext<GatewayContextType | null>(null);
 
-const STORAGE_KEY = "the-helm-gateway-config";
-
-function loadConfig(): GatewayConfig | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function saveConfig(config: GatewayConfig) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-}
-
-function clearStoredConfig() {
-  localStorage.removeItem(STORAGE_KEY);
-}
-
 function generateId(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -75,10 +54,16 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
   const closedRef = useRef(false);
   const configRef = useRef<GatewayConfig | null>(null);
 
-  // Load config from localStorage on mount
+  // Load config from API on mount
   useEffect(() => {
-    const stored = loadConfig();
-    if (stored) setConfigState(stored);
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.gateway?.url && data.gateway?.token) {
+          setConfigState(data.gateway);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Keep configRef in sync
@@ -217,11 +202,10 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
         pendingRef.current.clear();
 
         // Auto reconnect after 5s if not intentionally closed
-        if (!closedRef.current) {
+        if (!closedRef.current && configRef.current) {
           if (reconnectRef.current) clearTimeout(reconnectRef.current);
           reconnectRef.current = setTimeout(() => {
-            const stored = loadConfig();
-            if (stored) connect(stored);
+            if (configRef.current) connect(configRef.current);
           }, 5000);
         }
       };
@@ -345,14 +329,23 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
 
   const setConfig = useCallback(
     (cfg: GatewayConfig) => {
-      saveConfig(cfg);
+      // Persist to file via API
+      fetch("/api/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateway: cfg }),
+      }).catch(() => {});
       setConfigState(cfg);
     },
     []
   );
 
   const clearConfig = useCallback(() => {
-    clearStoredConfig();
+    fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gateway: { url: "", token: "" } }),
+    }).catch(() => {});
     disconnect();
     setConfigState(null);
   }, [disconnect]);

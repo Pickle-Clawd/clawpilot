@@ -91,47 +91,6 @@ export function getCategories(): string[] {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Layout persistence                                                 */
-/* ------------------------------------------------------------------ */
-
-const LAYOUT_STORAGE_KEY = "the-helm-layout";
-const EDIT_MODE_KEY = "the-helm-edit-mode";
-
-export function saveLayout(items: WidgetLayoutItem[]) {
-  localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(items));
-}
-
-export function loadLayout(): WidgetLayoutItem[] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-export function clearLayout() {
-  localStorage.removeItem(LAYOUT_STORAGE_KEY);
-}
-
-export function saveEditMode(mode: boolean) {
-  localStorage.setItem(EDIT_MODE_KEY, JSON.stringify(mode));
-}
-
-export function loadEditMode(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const raw = localStorage.getItem(EDIT_MODE_KEY);
-    if (!raw) return false;
-    return JSON.parse(raw);
-  } catch {
-    return false;
-  }
-}
-
-/* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 

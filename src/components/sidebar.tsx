@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -10,11 +11,13 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Plug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ThemePicker } from "@/components/theme-picker";
+import { SettingsDialog } from "@/components/settings-dialog";
 
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -30,6 +33,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -83,8 +87,33 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           })}
         </nav>
 
-        {/* Theme picker & collapse toggle */}
+        {/* Bottom section: gateway settings, theme picker, collapse toggle */}
         <div className="p-2 shrink-0 space-y-1">
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSettingsOpen(true)}
+                  className="w-full justify-center text-muted-foreground hover:text-foreground"
+                >
+                  <Plug className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Gateway Settings</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              className="w-full justify-start gap-3 px-3 py-2.5 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+            >
+              <Plug className="w-5 h-5 shrink-0" />
+              <span className="text-sm font-medium">Gateway</span>
+            </Button>
+          )}
           <ThemePicker collapsed={collapsed} />
           <Button
             variant="ghost"
@@ -96,6 +125,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </Button>
         </div>
       </aside>
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </TooltipProvider>
   );
 }

@@ -27,10 +27,23 @@ export interface ParticleConfig {
   wobble?: boolean;
   maxWobble?: number;
   glow?: boolean;
+  minOpacity?: number;
+  maxOpacity?: number;
+}
+
+export interface CursorBubbleConfig {
+  color: string;           // template with {{opacity}}
+  glowColor?: string;
+  minSize: number;
+  maxSize: number;
+  rate: number;            // max bubbles per second
+  lifetime: number;        // seconds before bubble disappears
+  drift: number;           // px of random horizontal spread
 }
 
 export interface AmbientConfig {
   particles?: ParticleConfig;
+  cursorBubbles?: CursorBubbleConfig;
 }
 
 export interface ThemeDefinition {

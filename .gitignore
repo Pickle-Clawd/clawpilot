@@ -42,3 +42,4 @@ next-env.d.ts
 CLAUDE.md
 THEME.md
 public/themes/index.json
+/data/

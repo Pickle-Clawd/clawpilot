@@ -36,7 +36,9 @@ function generateParticles(config: ParticleConfig): Particle[] {
 
     // Opacity scales with size: bigger = more opaque
     const sizeRatio = (size - config.minSize) / (config.maxSize - config.minSize || 1);
-    const opacity = 0.08 + sizeRatio * 0.2;
+    const minOpacity = config.minOpacity ?? 0.08;
+    const maxOpacity = config.maxOpacity ?? 0.28;
+    const opacity = minOpacity + sizeRatio * (maxOpacity - minOpacity);
 
     const maxWobble = config.maxWobble ?? 30;
 
@@ -78,12 +80,27 @@ export function ThemeParticles() {
   return (
     <>
       {particles.map((p, i) => {
-        const bg = config.highlightColor
-          ? `radial-gradient(circle at 35% 35%, ${resolveColor(config.highlightColor, p.opacity)}, ${resolveColor(config.color, p.opacity)})`
-          : resolveColor(config.color, p.opacity);
+        const isBubbleStyle = p.size >= 6;
+        const baseColor = resolveColor(config.color, p.opacity);
+
+        const bg = isBubbleStyle
+          ? `radial-gradient(circle at 65% 65%, transparent 40%, ${resolveColor(config.color, p.opacity * 0.3)} 70%, ${resolveColor(config.color, p.opacity * 0.6)} 90%, transparent 100%)`
+          : config.highlightColor
+            ? `radial-gradient(circle at 35% 35%, ${resolveColor(config.highlightColor, p.opacity)}, ${resolveColor(config.color, p.opacity)})`
+            : baseColor;
+
+        const highlight = isBubbleStyle
+          ? `radial-gradient(circle at 30% 25%, rgba(255,255,255,${(p.opacity * 0.7).toFixed(3)}) 0%, rgba(255,255,255,${(p.opacity * 0.15).toFixed(3)}) 30%, transparent 50%)`
+          : undefined;
 
         const shadow = config.glow && config.glowColor
-          ? `0 0 ${p.size * 2}px ${resolveColor(config.glowColor, p.opacity)}, inset 0 0 ${p.size}px rgba(255,255,255,${(p.opacity * 0.3).toFixed(3)})`
+          ? isBubbleStyle
+            ? `0 0 ${p.size}px ${resolveColor(config.glowColor, p.opacity * 0.3)}, inset 0 0 ${p.size * 0.4}px rgba(255,255,255,${(p.opacity * 0.1).toFixed(3)})`
+            : `0 0 ${p.size * 2}px ${resolveColor(config.glowColor, p.opacity)}, inset 0 0 ${p.size}px rgba(255,255,255,${(p.opacity * 0.3).toFixed(3)})`
+          : undefined;
+
+        const border = isBubbleStyle
+          ? `1px solid rgba(255,255,255,${(p.opacity * 0.4).toFixed(3)})`
           : undefined;
 
         const riseDistance = config.direction === "up"
@@ -105,13 +122,25 @@ export function ThemeParticles() {
               borderRadius: "50%",
               background: bg,
               boxShadow: shadow,
+              border,
               animationDuration: `${p.duration}s`,
               animationDelay: `${p.delay}s`,
               ["--rise-distance" as string]: riseDistance,
               ["--wobble" as string]: `${p.wobble}px`,
               ["--bubble-opacity" as string]: `${p.opacity}`,
             }}
-          />
+          >
+            {highlight && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  background: highlight,
+                }}
+              />
+            )}
+          </div>
         );
       })}
     </>

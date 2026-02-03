@@ -44,18 +44,29 @@
   },
   "ambient": {
     "particles": {
-      "count": 40,
-      "color": "rgba(255, 107, 74, {{opacity}})",
-      "glowColor": "rgba(255, 107, 74, {{glowOpacity}})",
-      "highlightColor": "rgba(255, 140, 100, {{highlightOpacity}})",
-      "minSize": 2,
-      "maxSize": 8,
-      "minDuration": 10,
-      "maxDuration": 28,
+      "count": 55,
+      "color": "rgba(180, 230, 245, {{opacity}})",
+      "glowColor": "rgba(180, 230, 245, {{glowOpacity}})",
+      "highlightColor": "rgba(240, 250, 255, {{highlightOpacity}})",
+      "minSize": 8,
+      "maxSize": 30,
+      "minDuration": 12,
+      "maxDuration": 30,
       "direction": "up",
       "wobble": true,
-      "maxWobble": 30,
-      "glow": true
+      "maxWobble": 40,
+      "glow": true,
+      "minOpacity": 0.3,
+      "maxOpacity": 0.7
+    },
+    "cursorBubbles": {
+      "color": "rgba(180, 230, 245, {{opacity}})",
+      "glowColor": "rgba(180, 230, 245, {{opacity}})",
+      "minSize": 4,
+      "maxSize": 14,
+      "rate": 12,
+      "lifetime": 2.5,
+      "drift": 20
     }
   }
 }

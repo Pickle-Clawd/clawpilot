@@ -1,6 +1,133 @@
-/* Reef theme — Deep ocean with coral highlights */
+/* Reef — Deep ocean with coral highlights */
 
-/* Additional reef-specific ambient styling via CSS */
-[data-theme="reef"] .theme-ambient-layer {
-  /* Theme ambient layer is styled by the particle renderer */
+/* ── Underwater caustic light pattern ─────────────────────── */
+[data-theme="reef"] .theme-ambient-layer::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 50%, rgba(74, 144, 164, 0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 30% 30%, rgba(74, 144, 164, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 70% 60%, rgba(180, 230, 245, 0.04) 0%, transparent 65%);
+  background-size: 120% 120%, 100% 100%, 110% 110%;
+  animation: reef-caustics 20s ease-in-out infinite;
+  opacity: 0.8;
+}
+
+@keyframes reef-caustics {
+  0% {
+    background-position: 0% 0%, 100% 0%, 50% 100%;
+  }
+  33% {
+    background-position: 100% 50%, 0% 100%, 100% 0%;
+  }
+  66% {
+    background-position: 50% 100%, 50% 50%, 0% 50%;
+  }
+  100% {
+    background-position: 0% 0%, 100% 0%, 50% 100%;
+  }
+}
+
+/* ── Card glow in ocean tones ─────────────────────────────── */
+[data-theme="reef"] [data-slot="card"],
+[data-theme="reef"] .bg-card {
+  box-shadow:
+    0 0 20px rgba(74, 144, 164, 0.06),
+    0 0 40px rgba(74, 144, 164, 0.03),
+    0 4px 16px rgba(10, 22, 40, 0.3),
+    inset 0 1px 0 rgba(180, 230, 245, 0.06);
+  border: 1px solid rgba(74, 144, 164, 0.1);
+}
+
+/* ── Coral sidebar divider ────────────────────────────────── */
+[data-theme="reef"] aside {
+  border-right-color: transparent;
+}
+
+[data-theme="reef"] aside::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 22, 40, 0.5) 0%,
+    rgba(255, 107, 74, 0.4) 40%,
+    rgba(74, 144, 164, 0.5) 70%,
+    rgba(10, 22, 40, 0.3) 100%
+  );
+  z-index: 1;
+}
+
+/* ── Deep ocean vignette ──────────────────────────────────── */
+[data-theme="reef"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 40%,
+    transparent 30%,
+    rgba(10, 22, 40, 0.15) 70%,
+    rgba(5, 10, 20, 0.35) 100%
+  );
+}
+
+/* ── Wave motion header border ────────────────────────────── */
+[data-theme="reef"] header {
+  border-bottom-color: transparent;
+}
+
+[data-theme="reef"] header::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 6'%3E%3Cpath d='M0 3 Q15 0 30 3 Q45 6 60 3 Q75 0 90 3 Q105 6 120 3' fill='none' stroke='rgba(74,144,164,0.3)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 120px 6px;
+  background-repeat: repeat-x;
+  animation: reef-wave-drift 8s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes reef-wave-drift {
+  0% {
+    background-position-x: 0;
+  }
+  100% {
+    background-position-x: 120px;
+  }
+}
+
+/* ── Bioluminescent pulse on active elements ──────────────── */
+[data-theme="reef"] a.bg-sidebar-accent,
+[data-theme="reef"] .bg-primary {
+  animation: reef-bioluminescence 3s ease-in-out infinite alternate;
+}
+
+@keyframes reef-bioluminescence {
+  0% {
+    box-shadow:
+      0 0 4px rgba(74, 144, 164, 0.2),
+      0 0 8px rgba(74, 144, 164, 0.1);
+  }
+  100% {
+    box-shadow:
+      0 0 8px rgba(74, 144, 164, 0.35),
+      0 0 20px rgba(74, 144, 164, 0.15),
+      0 0 35px rgba(180, 230, 245, 0.05);
+  }
+}
+
+[data-theme="reef"] a.bg-sidebar-accent {
+  text-shadow: 0 0 6px rgba(74, 144, 164, 0.4);
 }

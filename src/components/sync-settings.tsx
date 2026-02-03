@@ -10,17 +10,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  saveToGateway,
-  loadFromGateway,
   downloadLayout,
   importLayout,
+  saveLayoutToFile,
+  resetConfigFile,
 } from "@/lib/layout-sync";
-import { saveLayout, type WidgetLayoutItem } from "@/lib/widget-registry";
+import { type WidgetLayoutItem } from "@/lib/widget-registry";
 import {
   Download,
   Upload,
-  Save,
-  FolderDown,
+  RotateCcw,
   AlertTriangle,
 } from "lucide-react";
 
@@ -30,49 +29,25 @@ interface SyncSettingsProps {
   items: WidgetLayoutItem[];
   send: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
   onLayoutRestored: (items: WidgetLayoutItem[]) => void;
+  onReset: () => void;
 }
 
 export function SyncSettings({
   open,
   onOpenChange,
   items,
-  send,
   onLayoutRestored,
+  onReset,
 }: SyncSettingsProps) {
-  const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleSaveToGateway = useCallback(async () => {
-    if (items.length === 0) {
-      setStatus("No layout to save");
-      return;
-    }
-    setLoading(true);
-    setStatus(null);
-    const ok = await saveToGateway(send, items);
-    setStatus(
-      ok
-        ? "Layout saved to gateway! (Gateway will restart briefly)"
-        : "Failed to save — your gateway may not support this yet"
-    );
-    setLoading(false);
-  }, [items, send]);
-
-  const handleLoadFromGateway = useCallback(async () => {
-    setLoading(true);
-    setStatus(null);
-    const remote = await loadFromGateway(send);
-    if (remote && Array.isArray(remote) && remote.length > 0) {
-      const restored = remote as WidgetLayoutItem[];
-      saveLayout(restored);
-      onLayoutRestored(restored);
-      setStatus(`Restored ${restored.length} widgets from gateway!`);
-    } else {
-      setStatus("No saved layout found on gateway");
-    }
-    setLoading(false);
-  }, [send, onLayoutRestored]);
+  const handleReset = useCallback(async () => {
+    // Reset layout only, preserve gateway settings
+    await saveLayoutToFile([]);
+    onReset();
+    onOpenChange(false);
+  }, [onReset, onOpenChange]);
 
   const handleExport = useCallback(() => {
     if (items.length === 0) {
@@ -97,7 +72,7 @@ export function SyncSettings({
         const layout = importLayout(text);
         if (layout) {
           const restored = layout as WidgetLayoutItem[];
-          saveLayout(restored);
+          saveLayoutToFile(restored);
           onLayoutRestored(restored);
           setStatus(`Imported ${restored.length} widgets!`);
         } else {
@@ -105,7 +80,6 @@ export function SyncSettings({
         }
       };
       reader.readAsText(file);
-      // Reset input so same file can be imported again
       e.target.value = "";
     },
     [onLayoutRestored]
@@ -117,46 +91,11 @@ export function SyncSettings({
         <DialogHeader>
           <DialogTitle>Layout Settings</DialogTitle>
           <DialogDescription>
-            Save, restore, or transfer your dashboard layout
+            Export or import your dashboard layout
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          {/* Gateway sync */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Gateway Storage</h3>
-            <p className="text-xs text-muted-foreground">
-              Save your layout to the gateway so it persists across browsers.
-              This will briefly restart the gateway.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={handleSaveToGateway}
-                disabled={loading || items.length === 0}
-              >
-                <Save className="w-4 h-4" />
-                Save to Gateway
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={handleLoadFromGateway}
-                disabled={loading}
-              >
-                <FolderDown className="w-4 h-4" />
-                Load from Gateway
-              </Button>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-border/50" />
-
-          {/* Export / Import */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Export / Import</h3>
             <p className="text-xs text-muted-foreground">
@@ -192,7 +131,26 @@ export function SyncSettings({
             />
           </div>
 
-          {/* Status message */}
+          {/* Divider */}
+          <div className="border-t border-border/50" />
+
+          {/* Reset */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Reset Dashboard</h3>
+            <p className="text-xs text-muted-foreground">
+              Delete all saved settings and restore the default layout.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive"
+              onClick={handleReset}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reset to Defaults
+            </Button>
+          </div>
+
           {status && (
             <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />

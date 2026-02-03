@@ -200,6 +200,23 @@
   will-change: transform, opacity;
 }
 
+/* Cursor bubble animation — spawned on mouse move */
+@keyframes cursor-bubble {
+  0% {
+    transform: translate(-50%, -50%) translateY(0) translateX(0) scale(1);
+    opacity: var(--bubble-opacity, 0.5);
+  }
+  100% {
+    transform: translate(-50%, -50%) translateY(-80px) translateX(var(--cursor-drift, 10px)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.animate-cursor-bubble {
+  animation: cursor-bubble var(--cursor-lifetime, 2s) ease-out forwards;
+  will-change: transform, opacity;
+}
+
 /* ── react-grid-layout overrides ───────────────────────── */
 
 .react-grid-item.react-grid-placeholder {

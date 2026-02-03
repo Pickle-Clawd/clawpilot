@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ResponsiveGridLayout,
   useContainerWidth,
-  verticalCompactor,
+  noCompactor,
   type Layout,
   type LayoutItem,
   type ResponsiveLayouts,
@@ -12,14 +12,15 @@ import {
 import {
   getWidget,
   generateInstanceId,
-  loadLayout,
-  saveLayout,
-  loadEditMode,
-  saveEditMode,
   type WidgetLayoutItem,
 } from "@/lib/widget-registry";
 import { useGateway } from "@/lib/gateway-context";
-import { saveLocalLayout, loadLocalLayout, loadFromGateway } from "@/lib/layout-sync";
+import {
+  saveLayoutToFile,
+  loadLayoutFromFile,
+  saveEditModeToFile,
+  loadEditModeFromFile,
+} from "@/lib/layout-sync";
 import { WidgetWrapper } from "./widget-wrapper";
 import { WidgetCatalog } from "./widget-catalog";
 import { SyncSettings } from "./sync-settings";
@@ -34,6 +35,22 @@ import "react-resizable/css/styles.css";
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const COLS = { lg: 24, md: 18, sm: 12, xs: 6, xxs: 3 };
 
+/** Default layout shown when no saved layout exists */
+function getDefaultLayout(): WidgetLayoutItem[] {
+  const def = getWidget("welcome");
+  if (!def) return [];
+  return [
+    {
+      i: generateInstanceId("welcome"),
+      widgetId: "welcome",
+      x: 0,
+      y: 0,
+      w: def.defaultSize.w,
+      h: def.defaultSize.h,
+    },
+  ];
+}
+
 export function WidgetGrid() {
   const [items, setItems] = useState<WidgetLayoutItem[]>([]);
   const [editMode, setEditMode] = useState(false);
@@ -41,54 +58,62 @@ export function WidgetGrid() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { width, containerRef } = useContainerWidth();
-  const { config, send } = useGateway();
+  const { send } = useGateway();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingItemsRef = useRef<WidgetLayoutItem[] | null>(null);
 
-  const gatewayUrl = config?.url ?? null;
-
-  // Load saved layout on mount — try localStorage (keyed by gateway), fall back to gateway config
+  // Load saved layout from API on mount
   useEffect(() => {
-    // Try local storage first (keyed by gateway URL for multi-gateway support)
-    if (gatewayUrl) {
-      const localSaved = loadLocalLayout(gatewayUrl);
-      if (localSaved && localSaved.length > 0) {
-        setItems(localSaved as WidgetLayoutItem[]);
-        setMounted(true);
-        setEditMode(loadEditMode());
-        return;
-      }
-    }
-
-    // Fall back to generic localStorage (legacy)
-    const saved = loadLayout();
-    if (saved && saved.length > 0) {
-      setItems(saved);
-      setMounted(true);
-      setEditMode(loadEditMode());
-      return;
-    }
-
-    // No local layout — try loading from gateway config
-    if (gatewayUrl) {
-      loadFromGateway(send).then((remote) => {
-        if (remote && Array.isArray(remote) && remote.length > 0) {
-          const restored = remote as WidgetLayoutItem[];
-          setItems(restored);
-          saveLayout(restored);
-          saveLocalLayout(gatewayUrl, restored);
+    Promise.all([loadLayoutFromFile(), loadEditModeFromFile()]).then(
+      ([saved, savedEditMode]) => {
+        if (saved !== null) {
+          setItems(saved);
+        } else {
+          setItems(getDefaultLayout());
         }
-      });
-    }
+        setEditMode(savedEditMode);
+        setMounted(true);
+      }
+    );
+  }, []);
 
-    setEditMode(loadEditMode());
-    setMounted(true);
-  }, [gatewayUrl, send]);
+  // Flush any pending save before the page unloads
+  useEffect(() => {
+    const flush = () => {
+      if (pendingItemsRef.current) {
+        // Use sendBeacon for reliable save on unload
+        navigator.sendBeacon(
+          "/api/config",
+          new Blob(
+            [JSON.stringify({ layout: pendingItemsRef.current })],
+            { type: "application/json" }
+          )
+        );
+        pendingItemsRef.current = null;
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      // Also flush on unmount
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (pendingItemsRef.current) {
+        saveLayoutToFile(pendingItemsRef.current);
+        pendingItemsRef.current = null;
+      }
+    };
+  }, []);
 
-  // Persist layout changes (localStorage, keyed by gateway URL)
+  // Debounced save to file
   const persistItems = useCallback((newItems: WidgetLayoutItem[]) => {
     setItems(newItems);
-    saveLayout(newItems);
-    if (gatewayUrl) saveLocalLayout(gatewayUrl, newItems);
-  }, [gatewayUrl]);
+    pendingItemsRef.current = newItems;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveLayoutToFile(newItems);
+      pendingItemsRef.current = null;
+    }, 500);
+  }, []);
 
   // Convert our items to react-grid-layout format
   const layouts = useMemo((): ResponsiveLayouts => {
@@ -164,7 +189,7 @@ export function WidgetGrid() {
   const toggleEditMode = useCallback(() => {
     const next = !editMode;
     setEditMode(next);
-    saveEditMode(next);
+    saveEditModeToFile(next);
     if (!next) setCatalogOpen(false);
   }, [editMode]);
 
@@ -307,7 +332,7 @@ export function WidgetGrid() {
               enabled: editMode,
               handles: ["se"] as const,
             }}
-            compactor={verticalCompactor}
+            compactor={noCompactor}
             onLayoutChange={handleLayoutChange}
           >
             {items.map((item) => (
@@ -338,6 +363,10 @@ export function WidgetGrid() {
         items={items}
         send={send}
         onLayoutRestored={persistItems}
+        onReset={() => {
+          setItems(getDefaultLayout());
+          setEditMode(false);
+        }}
       />
     </div>
   );
