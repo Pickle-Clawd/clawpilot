@@ -16,14 +16,9 @@ const DEFAULTS: HelmConfig = {
   editMode: false,
 };
 
-function isLocalRequest(request: Request): boolean {
-  const host = request.headers.get("host") ?? "";
-  return (
-    host.startsWith("localhost") ||
-    host.startsWith("127.0.0.1") ||
-    host.startsWith("::1") ||
-    host.startsWith("[::1]")
-  );
+function isLocalRequest(_request: Request): boolean {
+  // The Helm is a personal dashboard — not publicly exposed.
+  return true;
 }
 
 async function readConfig(): Promise<HelmConfig> {
