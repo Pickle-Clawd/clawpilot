@@ -1,81 +1,89 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 
 const ALGORITHM = "aes-256-gcm";
-const KEY_PATH = path.join(process.cwd(), "data", ".helm-key");
 const IV_LENGTH = 12; // 96-bit IV (NIST recommended for GCM)
 const TAG_LENGTH = 16; // 128-bit auth tag
 
 let cachedKey: Buffer | null = null;
+let keyChecked = false;
 
-function getKey(): Buffer {
-  try {
-    const hex = fs.readFileSync(KEY_PATH, "utf-8").trim();
-    const buf = Buffer.from(hex, "hex");
-    if (buf.length === 32) return buf;
-  } catch {
-    // Key doesn't exist or is invalid — generate one
+function resolveKey(): Buffer | null {
+  const secret = process.env.HELM_SECRET;
+  if (secret) {
+    return crypto.createHash("sha256").update(secret).digest();
   }
-
-  const key = crypto.randomBytes(32);
-  const dir = path.dirname(KEY_PATH);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(KEY_PATH, key.toString("hex"), { mode: 0o600 });
-  return key;
+  return null;
 }
 
-function ensureKey(): Buffer {
-  if (!cachedKey) cachedKey = getKey();
+function getKey(): Buffer | null {
+  if (!keyChecked) {
+    cachedKey = resolveKey();
+    keyChecked = true;
+    if (!cachedKey) {
+      console.warn(
+        "[helm] HELM_SECRET env var not set — cookie values will not be encrypted. " +
+        "Set HELM_SECRET to a random string for encryption at rest."
+      );
+    }
+  }
   return cachedKey;
 }
 
-/** Check whether a string looks like an encrypted token (iv:cipher:tag format). */
-export function isEncrypted(value: string): boolean {
-  const parts = value.split(":");
-  if (parts.length !== 3) return false;
-  try {
-    for (const part of parts) {
-      if (Buffer.from(part, "base64").toString("base64") !== part) return false;
-    }
-    return true;
-  } catch {
-    return false;
+/**
+ * Seal a JavaScript value into a cookie-safe string.
+ * Encrypts with AES-256-GCM if HELM_SECRET is set, otherwise base64-encodes.
+ * Both are stored in httpOnly cookies so they're inaccessible to client JS.
+ */
+export function seal(data: unknown): string {
+  const json = JSON.stringify(data);
+  const key = getKey();
+
+  if (key) {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv, {
+      authTagLength: TAG_LENGTH,
+    });
+    const encrypted = Buffer.concat([
+      cipher.update(json, "utf-8"),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+    return "e:" + Buffer.concat([iv, encrypted, tag]).toString("base64");
   }
+
+  // No key — base64 encode (still protected by httpOnly)
+  return "b:" + Buffer.from(json, "utf-8").toString("base64");
 }
 
-/** Encrypt a plaintext string. Returns `base64(iv):base64(ciphertext):base64(authTag)`. */
-export function encryptToken(plaintext: string): string {
-  const key = ensureKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv, {
-    authTagLength: TAG_LENGTH,
-  });
-  const encrypted = Buffer.concat([
-    cipher.update(plaintext, "utf-8"),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
-  return `${iv.toString("base64")}:${encrypted.toString("base64")}:${tag.toString("base64")}`;
-}
+/**
+ * Unseal a cookie string back into a JavaScript value.
+ */
+export function unseal(sealed: string): unknown {
+  if (sealed.startsWith("e:")) {
+    const key = getKey();
+    if (!key) throw new Error("Encrypted cookie but no HELM_SECRET set");
 
-/** Decrypt a token string in the `iv:ciphertext:tag` format. */
-export function decryptToken(encrypted: string): string {
-  const key = ensureKey();
-  const parts = encrypted.split(":");
-  if (parts.length !== 3) throw new Error("Invalid encrypted token format");
+    const buf = Buffer.from(sealed.slice(2), "base64");
+    const iv = buf.subarray(0, IV_LENGTH);
+    const tag = buf.subarray(buf.length - TAG_LENGTH);
+    const ciphertext = buf.subarray(IV_LENGTH, buf.length - TAG_LENGTH);
 
-  const iv = Buffer.from(parts[0], "base64");
-  const ciphertext = Buffer.from(parts[1], "base64");
-  const tag = Buffer.from(parts[2], "base64");
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, {
+      authTagLength: TAG_LENGTH,
+    });
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]);
+    return JSON.parse(decrypted.toString("utf-8"));
+  }
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, {
-    authTagLength: TAG_LENGTH,
-  });
-  decipher.setAuthTag(tag);
-  const decrypted = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
-  return decrypted.toString("utf-8");
+  if (sealed.startsWith("b:")) {
+    return JSON.parse(
+      Buffer.from(sealed.slice(2), "base64").toString("utf-8")
+    );
+  }
+
+  throw new Error("Invalid sealed format");
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs/promises";
-import path from "node:path";
-import { encryptToken, decryptToken, isEncrypted } from "@/lib/crypto";
+import { cookies } from "next/headers";
+import { seal, unseal } from "@/lib/crypto";
 
-const CONFIG_PATH = path.join(process.cwd(), "data", "helm-config.json");
+const COOKIE_NAME = "helm-config";
+const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
 
 interface HelmConfig {
   gateway: { url: string; token: string };
@@ -17,51 +17,24 @@ const DEFAULTS: HelmConfig = {
   editMode: false,
 };
 
-function isLocalRequest(_request: Request): boolean {
-  // The Helm is a personal dashboard — not publicly exposed.
-  return true;
-}
-
 async function readConfig(): Promise<HelmConfig> {
   try {
-    await fs.access(CONFIG_PATH);
-    const raw = await fs.readFile(CONFIG_PATH, "utf-8");
-    const config = { ...DEFAULTS, ...JSON.parse(raw) } as HelmConfig;
+    const store = await cookies();
+    const cookie = store.get(COOKIE_NAME);
+    if (!cookie?.value) return { ...DEFAULTS };
 
-    // Decrypt token if encrypted; plaintext tokens pass through (migration)
-    if (config.gateway.token && isEncrypted(config.gateway.token)) {
-      try {
-        config.gateway.token = decryptToken(config.gateway.token);
-      } catch {
-        console.error("[config] Failed to decrypt token — clearing it");
-        config.gateway.token = "";
-      }
-    }
-
-    return config;
+    const data = unseal(cookie.value) as Partial<HelmConfig>;
+    return { ...DEFAULTS, ...data };
   } catch {
     return { ...DEFAULTS };
   }
 }
 
-async function writeConfig(config: HelmConfig) {
-  const dir = path.dirname(CONFIG_PATH);
-  await fs.mkdir(dir, { recursive: true });
-
-  // Encrypt token before writing to disk
-  const toWrite = {
-    ...config,
-    gateway: {
-      ...config.gateway,
-      token: config.gateway.token ? encryptToken(config.gateway.token) : "",
-    },
-  };
-
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(toWrite, null, 2));
-}
-
-function toResponse(config: HelmConfig): Record<string, unknown> {
-  return {
+function buildResponse(
+  config: HelmConfig,
+  status = 200
+): NextResponse {
+  const body = {
     ...config,
     gateway: {
       url: config.gateway.url,
@@ -69,6 +42,26 @@ function toResponse(config: HelmConfig): Record<string, unknown> {
       hasToken: !!config.gateway.token,
     },
   };
+
+  const response = NextResponse.json(body, { status });
+
+  let sealed = seal(config);
+
+  // Cookie value limit is ~4 KB.  If the full config is too large
+  // (big layout), drop layout so gateway credentials always persist.
+  if (sealed.length > 3800) {
+    sealed = seal({ ...config, layout: [], editMode: false });
+  }
+
+  response.cookies.set(COOKIE_NAME, sealed, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: COOKIE_MAX_AGE,
+  });
+
+  return response;
 }
 
 function validateBody(body: Record<string, unknown>): string | null {
@@ -93,18 +86,12 @@ function validateBody(body: Record<string, unknown>): string | null {
   return null;
 }
 
-export async function GET(request: Request) {
-  if (!isLocalRequest(request)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+export async function GET() {
   const config = await readConfig();
-  return NextResponse.json(toResponse(config));
+  return buildResponse(config);
 }
 
 async function handleWrite(request: Request) {
-  if (!isLocalRequest(request)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   try {
     const body = await request.json();
     const validationError = validateBody(body);
@@ -117,8 +104,7 @@ async function handleWrite(request: Request) {
       layout: body.layout ?? current.layout,
       editMode: body.editMode ?? current.editMode,
     };
-    await writeConfig(updated);
-    return NextResponse.json(toResponse(updated));
+    return buildResponse(updated);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
@@ -131,21 +117,8 @@ async function handleWrite(request: Request) {
 export const PUT = handleWrite;
 export const POST = handleWrite;
 
-export async function DELETE(request: Request) {
-  if (!isLocalRequest(request)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  try {
-    await fs.unlink(CONFIG_PATH);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    // File not existing is fine for DELETE
-    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      return NextResponse.json({ ok: true });
-    }
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
-  }
+export async function DELETE() {
+  const response = NextResponse.json({ ok: true });
+  response.cookies.delete(COOKIE_NAME);
+  return response;
 }
