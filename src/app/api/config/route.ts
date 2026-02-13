@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { encryptToken, decryptToken, isEncrypted } from "@/lib/crypto";
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "helm-config.json");
 
@@ -25,7 +26,19 @@ async function readConfig(): Promise<HelmConfig> {
   try {
     await fs.access(CONFIG_PATH);
     const raw = await fs.readFile(CONFIG_PATH, "utf-8");
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const config = { ...DEFAULTS, ...JSON.parse(raw) } as HelmConfig;
+
+    // Decrypt token if encrypted; plaintext tokens pass through (migration)
+    if (config.gateway.token && isEncrypted(config.gateway.token)) {
+      try {
+        config.gateway.token = decryptToken(config.gateway.token);
+      } catch {
+        console.error("[config] Failed to decrypt token — clearing it");
+        config.gateway.token = "";
+      }
+    }
+
+    return config;
   } catch {
     return { ...DEFAULTS };
   }
@@ -34,16 +47,26 @@ async function readConfig(): Promise<HelmConfig> {
 async function writeConfig(config: HelmConfig) {
   const dir = path.dirname(CONFIG_PATH);
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
+
+  // Encrypt token before writing to disk
+  const toWrite = {
+    ...config,
+    gateway: {
+      ...config.gateway,
+      token: config.gateway.token ? encryptToken(config.gateway.token) : "",
+    },
+  };
+
+  await fs.writeFile(CONFIG_PATH, JSON.stringify(toWrite, null, 2));
 }
 
-function redactConfig(config: HelmConfig): Record<string, unknown> {
+function toResponse(config: HelmConfig): Record<string, unknown> {
   return {
     ...config,
     gateway: {
       url: config.gateway.url,
+      token: config.gateway.token,
       hasToken: !!config.gateway.token,
-      token: config.gateway.token ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" : "",
     },
   };
 }
@@ -75,7 +98,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const config = await readConfig();
-  return NextResponse.json(redactConfig(config));
+  return NextResponse.json(toResponse(config));
 }
 
 async function handleWrite(request: Request) {
@@ -95,7 +118,7 @@ async function handleWrite(request: Request) {
       editMode: body.editMode ?? current.editMode,
     };
     await writeConfig(updated);
-    return NextResponse.json(redactConfig(updated));
+    return NextResponse.json(toResponse(updated));
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
